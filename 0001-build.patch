@@ -1,0 +1,31 @@
+diff --git a/build/core/Makefile b/build/core/Makefile
+index fe3cfd9..3ef3c8e 100644
+--- a/build/core/Makefile
++++ b/build/core/Makefile
+@@ -19,10 +19,10 @@ is_tests_build := $(filter tests,$(MAKECMDGOALS))
+ # The filter part means "only eval the copy-one-file rule if this
+ # src:dest pair is the first one to match the same dest"
+ #$(1): the src:dest pair
+-define check-product-copy-files
+-$(if $(filter %.apk, $(1)),$(error \
++#define check-product-copy-files
++#$(if $(filter %.apk, $(1)),$(error \
+     Prebuilt apk found in PRODUCT_COPY_FILES: $(1), use BUILD_PREBUILT instead!))
+-endef
++#endef
+ # filter out the duplicate <source file>:<dest file> pairs.
+ unique_product_copy_files_pairs :=
+ $(foreach cf,$(PRODUCT_COPY_FILES), \
+diff --git a/build/envsetup.sh b/build/envsetup.sh
+index 692a4c5..1faa116 100644
+--- a/build/envsetup.sh
++++ b/build/envsetup.sh
+@@ -171,6 +171,8 @@ function setpaths()
+ 
+     unset ANDROID_HOST_OUT
+     export ANDROID_HOST_OUT=$(get_abs_build_var HOST_OUT)
++    tdevice=$(get_build_var TARGET_DEVICE)
++    export DEVICE_PATH=$T/device/*/$tdevice
+ 
+     # needed for processing samples collected by perf counters
+     unset OPROFILE_EVENTS_DIR

@@ -1,0 +1,13 @@
+diff --git a/gaia/Android.mk b/gaia/Android.mk
+index 6104679..d4a02aa 100644
+--- a/gaia/Android.mk
++++ b/gaia/Android.mk
+@@ -22,7 +22,7 @@ GAIA_APP_INSTALL_PARENT := $(GAIA_PROFILE_INSTALL_PARENT)
+ CLEAN_PROFILE := 0
+ 
+ # In user (production) builds we put gaia apps in /system/b2g/webapps
+-ifneq ($(filter user userdebug, $(TARGET_BUILD_VARIANT)),)
++ifneq ($(filter user userdebug eng, $(TARGET_BUILD_VARIANT)),)
+ GAIA_MAKE_FLAGS += PRODUCTION=1
+ B2G_SYSTEM_APPS := 1
+ endif
