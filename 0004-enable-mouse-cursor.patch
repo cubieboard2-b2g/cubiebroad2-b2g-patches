@@ -1,0 +1,179 @@
+diff --git a/gecko/widget/gonk/moz.build b/gecko/widget/gonk/moz.build
+index ae3bd58..59c64a5 100644
+--- a/gecko/widget/gonk/moz.build
++++ b/gecko/widget/gonk/moz.build
+@@ -100,10 +100,11 @@ if CONFIG['ANDROID_VERSION'] > '15':
+     LOCAL_INCLUDES += [
+         '%' + '%s/frameworks/native/opengl/include' % CONFIG['ANDROID_SOURCE'],
+     ]
+ 
+ LOCAL_INCLUDES += [
+     '%' + '%s/%s' % (CONFIG['ANDROID_SOURCE'], d) for d in [
++	'device/softwinner/common/hardware/include',
+         'hardware/libhardware/include',
+         'hardware/libhardware_legacy/include',
+     ]
+ ]
+diff --git a/gecko/widget/gonk/nsAppShell.cpp b/gecko/widget/gonk/nsAppShell.cpp
+index 9eb740c..f54718e 100644
+--- a/gecko/widget/gonk/nsAppShell.cpp
++++ b/gecko/widget/gonk/nsAppShell.cpp
+@@ -72,12 +72,74 @@
+ 
+ // Defines kKeyMapping and GetKeyNameIndex()
+ #include "GonkKeyMapping.h"
+ #include "mozilla/layers/CompositorParent.h"
+ #include "GeckoTouchDispatcher.h"
+ 
++// include for hardware cursor
++#include <drv_display.h>
++/*
++*	0 -----> black
++*   1 -----> white
++*	2 -----> no care
++*   3 -----> no care but hide
++*/
++unsigned char hwc_img[32][32] = {
++	{1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,0,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,0,1,1,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,0,1,1,1,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,0,1,1,1,1,1,0,0,0,0,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,1,1,3,3,1,1,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,1,3,3,3,1,1,1,0,0,0,0,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,1,3,3,3,3,3,1,1,0,0,0,0,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{1,3,3,3,3,3,3,1,1,1,0,0,0,0,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{3,3,3,3,3,3,3,3,1,1,0,0,0,0,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{3,3,3,3,3,3,3,3,1,1,1,0,1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++	{3,3,3,3,3,3,3,3,3,1,1,1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
++};
++/*
++*	alpha value (24-31)
++*   red value 	(16-23)
++*   green value	(8-15)
++*   blue value	(0-7)
++*/
++unsigned int palette_table[] = {
++	0xff000000,			// index 0
++	0xffffffff,			// index 1
++	0xffff0000,			// index 2
++	0x0000ff00,			// index 3
++};
++
++struct disp_need {
++	unsigned long addr0;
++	unsigned long addr1;
++	unsigned long addr2;
++	unsigned long addr3;
++} disp_para = {0};
++
+ #undef LOG
+ #define LOG(args...)                                            \
+     __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
+ #ifdef VERBOSE_LOG_ENABLED
+ # define VERBOSE_LOG(args...)                           \
+     __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
+@@ -392,20 +454,61 @@ updateHeadphoneSwitch()
+ 
+ class GeckoPointerController : public PointerControllerInterface {
+     float mX;
+     float mY;
+     int32_t mButtonState;
+     InputReaderConfiguration* mConfig;
++	int mDisp_fd;
+ public:
+     GeckoPointerController(InputReaderConfiguration* config)
+         : mX(0)
+         , mY(0)
+         , mButtonState(0)
+         , mConfig(config)
+-    {}
+ 
++    {
++		mDisp_fd = open("/dev/disp", O_RDWR, 0);
++
++		if (mDisp_fd < 0)
++			LOG("%s : Failed to open /dev/disp", __func__);
++		else {
++/*
++*		please to refer to www.sunxi.org and search 'HWC IOCTLs'
++*		if you want to know why use it as below
++*/
++			LOG("%s : Set colormap and cursor image", __func__);
++			disp_para.addr0 = 0;
++			disp_para.addr1 = (unsigned long)&palette_table;
++			disp_para.addr2 = 0;
++			disp_para.addr3 = sizeof(palette_table);
++
++			ioctl(mDisp_fd, DISP_CMD_HWC_SET_PALETTE_TABLE, &disp_para);
++
++			__disp_hwc_pattern_t hwc_pattern;
++			hwc_pattern.pat_mode = DISP_HWC_MOD_H32_V32_8BPP;
++			hwc_pattern.addr = (unsigned long)hwc_img;
++
++			disp_para.addr0 = 0;
++			disp_para.addr1 = (unsigned long)&hwc_pattern;
++			disp_para.addr2 = disp_para.addr3 = 0;
++
++			ioctl(mDisp_fd, DISP_CMD_HWC_SET_FB, &disp_para);
++
++			LOG("%s : Enable the hardware cursor", __func__);
++
++			ioctl(mDisp_fd, DISP_CMD_HWC_OPEN, &disp_para);
++		}
++	}
++	virtual ~GeckoPointerController() {
++		if (mDisp_fd > 0) {
++				disp_para.addr0 = 0;
++				ioctl(mDisp_fd, DISP_CMD_HWC_CLOSE, &disp_para);
++				close(mDisp_fd);
++				mDisp_fd = -1;
++		}
++	}
+     virtual bool getBounds(float* outMinX, float* outMinY,
+             float* outMaxX, float* outMaxY) const;
+     virtual void move(float deltaX, float deltaY);
+     virtual void setButtonState(int32_t buttonState);
+     virtual int32_t getButtonState() const;
+     virtual void setPosition(float x, float y);
+@@ -439,12 +542,20 @@ GeckoPointerController::move(float deltaX, float deltaY)
+ {
+     float minX, minY, maxX, maxY;
+     getBounds(&minX, &minY, &maxX, &maxY);
+ 
+     mX = clamped(mX + deltaX, minX, maxX);
+     mY = clamped(mY + deltaY, minY, maxY);
++	if (mDisp_fd > 0) {
++		__disp_pos_t pos;
++		pos.x = mX;
++		pos.y = mY;
++		disp_para.addr0 = disp_para.addr2 = disp_para.addr3 = 0;
++		disp_para.addr1 = (unsigned long)&pos;
++		ioctl(mDisp_fd, DISP_CMD_HWC_SET_POS, &disp_para);
++	}
+ }
+ 
+ void
+ GeckoPointerController::setButtonState(int32_t buttonState)
+ {
+     mButtonState = buttonState;
